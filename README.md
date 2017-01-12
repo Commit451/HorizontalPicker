@@ -17,9 +17,9 @@ Original [source](https://github.com/blazsolar/HorizontalPicker) from Blaž Šol
         android:textSize="@dimen/textSize"
         android:ellipsize="none | start | middle | end | marquee"
         android:marqueeRepeatLimit="-1"
-        picker:values="@array/values"
-        picker:dividerSize="@dimen/itemPadding"
-        picker:sideItems="@integer/sideItems" />
+        app:values="@array/values"
+        app:dividerSize="@dimen/itemPadding"
+        app:sideCount="@integer/sideItems" />
 ```
 
 License
