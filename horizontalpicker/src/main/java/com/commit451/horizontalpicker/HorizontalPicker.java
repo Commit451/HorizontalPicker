@@ -590,7 +590,7 @@ public class HorizontalPicker extends View {
     /**
      * Get the selected position
      *
-     * @return the selectedPosition
+     * @return the selected item position
      */
     public int getSelectedItemPosition() {
         int x = getScrollX();
@@ -629,16 +629,6 @@ public class HorizontalPicker extends View {
             this.sideItems = sideCount;
             calculateItemSize(getWidth(), getHeight());
         }
-    }
-
-    /**
-     * Get the values
-     *
-     * @return the values
-     */
-    @Nullable
-    public List<?> getValues() {
-        return values;
     }
 
     /**

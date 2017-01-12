@@ -4,7 +4,7 @@ View that enables users to select single item by scrolling or tapping left and r
 
 [![Build Status](https://travis-ci.org/Commit451/HorizontalPicker.svg?branch=master)](https://travis-ci.org/Commit451/HorizontalPicker) [![](https://jitpack.io/v/Commit451/HorizontalPicker.svg)](https://jitpack.io/#Commit451/HorizontalPicker)
 
-![screen recording](images/screen.gif "Screen recording")
+![screen recording](art/screen.gif "Screen recording")
 
 Original [source](https://github.com/blazsolar/HorizontalPicker) from Blaž Šolar
 # Usage
