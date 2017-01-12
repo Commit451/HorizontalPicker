@@ -16,8 +16,10 @@
 
 package com.commit451.horizontalpicker.sample;
 
+import android.graphics.Typeface;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
+import android.view.View;
 import android.widget.Toast;
 
 import com.commit451.horizontalpicker.HorizontalPicker;
@@ -29,9 +31,17 @@ public class MainActivity extends AppCompatActivity implements HorizontalPicker.
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        HorizontalPicker picker = (HorizontalPicker) findViewById(R.id.picker);
+        final HorizontalPicker picker = (HorizontalPicker) findViewById(R.id.picker);
         picker.setOnItemClickedListener(this);
         picker.setOnItemSelectedListener(this);
+
+        findViewById(R.id.button_font).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Typeface typeface = Typeface.createFromAsset(getAssets(), "fonts/Roboto-Thin.ttf");
+                picker.setTypeface(typeface);
+            }
+        });
     }
 
     @Override

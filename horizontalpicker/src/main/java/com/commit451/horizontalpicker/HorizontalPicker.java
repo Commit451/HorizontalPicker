@@ -25,6 +25,7 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.RectF;
+import android.graphics.Typeface;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -332,117 +333,6 @@ public class HorizontalPicker extends View {
         textDir = getTextDirectionHeuristic();
     }
 
-    /**
-     * TODO cache values
-     * @param text
-     * @return
-     */
-    private boolean isRtl(CharSequence text) {
-        if (textDir == null) {
-            textDir = getTextDirectionHeuristic();
-        }
-
-        return textDir.isRtl(text, 0, text.length());
-    }
-
-    private TextDirectionHeuristicCompat getTextDirectionHeuristic() {
-
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN_MR1) {
-
-            return TextDirectionHeuristicsCompat.FIRSTSTRONG_LTR;
-
-        } else {
-
-            // Always need to resolve layout direction first
-            final boolean defaultIsRtl = (getLayoutDirection() == LAYOUT_DIRECTION_RTL);
-
-            switch (getTextDirection()) {
-                default:
-                case TEXT_DIRECTION_FIRST_STRONG:
-                    return (defaultIsRtl ? TextDirectionHeuristicsCompat.FIRSTSTRONG_RTL :
-                            TextDirectionHeuristicsCompat.FIRSTSTRONG_LTR);
-                case TEXT_DIRECTION_ANY_RTL:
-                    return TextDirectionHeuristicsCompat.ANYRTL_LTR;
-                case TEXT_DIRECTION_LTR:
-                    return TextDirectionHeuristicsCompat.LTR;
-                case TEXT_DIRECTION_RTL:
-                    return TextDirectionHeuristicsCompat.RTL;
-                case TEXT_DIRECTION_LOCALE:
-                    return TextDirectionHeuristicsCompat.LOCALE;
-            }
-        }
-    }
-
-    private void remakeLayout() {
-
-        if (layouts != null && layouts.length > 0 && getWidth() > 0)  {
-            for (int i = 0; i < layouts.length; i++) {
-                layouts[i].replaceOrMake(values[i], textPaint, itemWidth,
-                        Layout.Alignment.ALIGN_CENTER, 1f, 1f, boringMetrics, false, ellipsize,
-                        itemWidth);
-            }
-        }
-
-    }
-
-    private void drawEdgeEffect(Canvas canvas, EdgeEffect edgeEffect, int degrees) {
-
-        if (canvas == null || edgeEffect == null || (degrees != 90 && degrees != 270)) {
-            return;
-        }
-
-        if(!edgeEffect.isFinished()) {
-            final int restoreCount = canvas.getSaveCount();
-            final int width = getWidth();
-            final int height = getHeight();
-
-            canvas.rotate(degrees);
-
-            if (degrees == 270) {
-                canvas.translate(-height, Math.max(0, getScrollX()));
-            } else { // 90
-                canvas.translate(0, -(Math.max(getScrollRange(), getScaleX()) + width));
-            }
-
-            edgeEffect.setSize(height, width);
-            if(edgeEffect.draw(canvas)) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
-                    postInvalidateOnAnimation();
-                } else {
-                    postInvalidate();
-                }
-            }
-
-            canvas.restoreToCount(restoreCount);
-        }
-
-    }
-
-    /**
-     * Calculates text color for specified item based on its position and state.
-     *
-     * @param item Index of item to get text color for
-     * @return Item text color
-     */
-    private int getTextColor(int item) {
-
-        int scrollX = getScrollX();
-
-        // set color of text
-        int color = textColor.getDefaultColor();
-        int itemWithPadding = (int) (itemWidth + dividerSize);
-        if (scrollX > itemWithPadding * item - itemWithPadding / 2 &&
-                scrollX < itemWithPadding * (item + 1) - itemWithPadding / 2) {
-            int position = scrollX - itemWithPadding / 2;
-            color = getColor(position, item);
-        } else if(item == pressedItem) {
-            color = textColor.getColorForState(new int[] { android.R.attr.state_pressed }, color);
-        }
-
-        return color;
-
-    }
-
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
@@ -574,20 +464,6 @@ public class HorizontalPicker extends View {
         return true;
     }
 
-    private void selectItem() {
-        // post to the UI Thread to avoid potential interference with the OpenGL Thread
-        if (onItemClicked != null) {
-            post(new Runnable() {
-                @Override
-                public void run() {
-                    onItemClicked.onItemClicked(getSelectedItem());
-                }
-            });
-        }
-
-        adjustToNearestItemX();
-    }
-
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
 
@@ -630,6 +506,74 @@ public class HorizontalPicker extends View {
     @Override
     public void getFocusedRect(Rect r) {
         super.getFocusedRect(r); // TODO this should only be current item
+    }
+
+    @Override
+    protected void onRestoreInstanceState(Parcelable state) {
+
+        if (!(state instanceof SavedState)) {
+            super.onRestoreInstanceState(state);
+            return;
+        }
+
+        SavedState ss = (SavedState) state;
+        super.onRestoreInstanceState(ss.getSuperState());
+
+        setSelectedItem(ss.mSelItem);
+
+
+    }
+
+    @Override
+    protected Parcelable onSaveInstanceState() {
+        Parcelable superState = super.onSaveInstanceState();
+
+        SavedState savedState = new SavedState(superState);
+        savedState.mSelItem = selectedItem;
+
+        return savedState;
+
+    }
+
+    @Override
+    public void setOverScrollMode(int overScrollMode) {
+        if(overScrollMode != OVER_SCROLL_NEVER) {
+            Context context = getContext();
+            leftEdgeEffect = new EdgeEffect(context);
+            rightEdgeEffect = new EdgeEffect(context);
+        } else {
+            leftEdgeEffect = null;
+            rightEdgeEffect = null;
+        }
+
+        super.setOverScrollMode(overScrollMode);
+    }
+
+    @Override
+    protected void onOverScrolled(int scrollX, int scrollY, boolean clampedX, boolean clampedY) {
+        super.scrollTo(scrollX, scrollY);
+
+        if(!flingScrollerX.isFinished() && clampedX) {
+            flingScrollerX.springBack(scrollX, scrollY, 0, getScrollRange(), 0, 0);
+        }
+    }
+
+    @Override
+    protected void drawableStateChanged() {
+        super.drawableStateChanged(); //TODO
+    }
+
+    public TextUtils.TruncateAt getEllipsize() {
+        return ellipsize;
+    }
+
+    public void setEllipsize(TextUtils.TruncateAt ellipsize) {
+        if (this.ellipsize != ellipsize) {
+            this.ellipsize = ellipsize;
+
+            remakeLayout();
+            invalidate();
+        }
     }
 
     public void setOnItemSelectedListener(OnItemSelected onItemSelected) {
@@ -711,72 +655,138 @@ public class HorizontalPicker extends View {
 
     }
 
-    @Override
-    protected void onRestoreInstanceState(Parcelable state) {
+    /**
+     * Set the typeface
+     * @param typeface typeface
+     */
+    public void setTypeface(Typeface typeface) {
+        textPaint.setTypeface(typeface);
+        invalidate();
+    }
 
-        if (!(state instanceof SavedState)) {
-            super.onRestoreInstanceState(state);
+    /**
+     * TODO cache values
+     * @param text
+     * @return
+     */
+    private boolean isRtl(CharSequence text) {
+        if (textDir == null) {
+            textDir = getTextDirectionHeuristic();
+        }
+
+        return textDir.isRtl(text, 0, text.length());
+    }
+
+    private TextDirectionHeuristicCompat getTextDirectionHeuristic() {
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN_MR1) {
+
+            return TextDirectionHeuristicsCompat.FIRSTSTRONG_LTR;
+
+        } else {
+
+            // Always need to resolve layout direction first
+            final boolean defaultIsRtl = (getLayoutDirection() == LAYOUT_DIRECTION_RTL);
+
+            switch (getTextDirection()) {
+                default:
+                case TEXT_DIRECTION_FIRST_STRONG:
+                    return (defaultIsRtl ? TextDirectionHeuristicsCompat.FIRSTSTRONG_RTL :
+                            TextDirectionHeuristicsCompat.FIRSTSTRONG_LTR);
+                case TEXT_DIRECTION_ANY_RTL:
+                    return TextDirectionHeuristicsCompat.ANYRTL_LTR;
+                case TEXT_DIRECTION_LTR:
+                    return TextDirectionHeuristicsCompat.LTR;
+                case TEXT_DIRECTION_RTL:
+                    return TextDirectionHeuristicsCompat.RTL;
+                case TEXT_DIRECTION_LOCALE:
+                    return TextDirectionHeuristicsCompat.LOCALE;
+            }
+        }
+    }
+
+    private void remakeLayout() {
+
+        if (layouts != null && layouts.length > 0 && getWidth() > 0)  {
+            for (int i = 0; i < layouts.length; i++) {
+                layouts[i].replaceOrMake(values[i], textPaint, itemWidth,
+                        Layout.Alignment.ALIGN_CENTER, 1f, 1f, boringMetrics, false, ellipsize,
+                        itemWidth);
+            }
+        }
+
+    }
+
+    private void drawEdgeEffect(Canvas canvas, EdgeEffect edgeEffect, int degrees) {
+
+        if (canvas == null || edgeEffect == null || (degrees != 90 && degrees != 270)) {
             return;
         }
 
-        SavedState ss = (SavedState) state;
-        super.onRestoreInstanceState(ss.getSuperState());
+        if(!edgeEffect.isFinished()) {
+            final int restoreCount = canvas.getSaveCount();
+            final int width = getWidth();
+            final int height = getHeight();
 
-        setSelectedItem(ss.mSelItem);
+            canvas.rotate(degrees);
 
+            if (degrees == 270) {
+                canvas.translate(-height, Math.max(0, getScrollX()));
+            } else { // 90
+                canvas.translate(0, -(Math.max(getScrollRange(), getScaleX()) + width));
+            }
 
-    }
+            edgeEffect.setSize(height, width);
+            if(edgeEffect.draw(canvas)) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
+                    postInvalidateOnAnimation();
+                } else {
+                    postInvalidate();
+                }
+            }
 
-    @Override
-    protected Parcelable onSaveInstanceState() {
-        Parcelable superState = super.onSaveInstanceState();
-
-        SavedState savedState = new SavedState(superState);
-        savedState.mSelItem = selectedItem;
-
-        return savedState;
-
-    }
-
-    @Override
-    public void setOverScrollMode(int overScrollMode) {
-        if(overScrollMode != OVER_SCROLL_NEVER) {
-            Context context = getContext();
-            leftEdgeEffect = new EdgeEffect(context);
-            rightEdgeEffect = new EdgeEffect(context);
-        } else {
-            leftEdgeEffect = null;
-            rightEdgeEffect = null;
+            canvas.restoreToCount(restoreCount);
         }
 
-        super.setOverScrollMode(overScrollMode);
     }
 
-    public TextUtils.TruncateAt getEllipsize() {
-        return ellipsize;
-    }
+    /**
+     * Calculates text color for specified item based on its position and state.
+     *
+     * @param item Index of item to get text color for
+     * @return Item text color
+     */
+    private int getTextColor(int item) {
 
-    public void setEllipsize(TextUtils.TruncateAt ellipsize) {
-        if (this.ellipsize != ellipsize) {
-            this.ellipsize = ellipsize;
+        int scrollX = getScrollX();
 
-            remakeLayout();
-            invalidate();
+        // set color of text
+        int color = textColor.getDefaultColor();
+        int itemWithPadding = (int) (itemWidth + dividerSize);
+        if (scrollX > itemWithPadding * item - itemWithPadding / 2 &&
+                scrollX < itemWithPadding * (item + 1) - itemWithPadding / 2) {
+            int position = scrollX - itemWithPadding / 2;
+            color = getColor(position, item);
+        } else if(item == pressedItem) {
+            color = textColor.getColorForState(new int[] { android.R.attr.state_pressed }, color);
         }
+
+        return color;
+
     }
 
-    @Override
-    protected void onOverScrolled(int scrollX, int scrollY, boolean clampedX, boolean clampedY) {
-        super.scrollTo(scrollX, scrollY);
-
-        if(!flingScrollerX.isFinished() && clampedX) {
-            flingScrollerX.springBack(scrollX, scrollY, 0, getScrollRange(), 0, 0);
+    private void selectItem() {
+        // post to the UI Thread to avoid potential interference with the OpenGL Thread
+        if (onItemClicked != null) {
+            post(new Runnable() {
+                @Override
+                public void run() {
+                    onItemClicked.onItemClicked(getSelectedItem());
+                }
+            });
         }
-    }
 
-    @Override
-    protected void drawableStateChanged() {
-        super.drawableStateChanged(); //TODO
+        adjustToNearestItemX();
     }
 
     private int getPositionFromTouch(float x) {
@@ -1025,13 +1035,13 @@ public class HorizontalPicker extends View {
 
     public interface OnItemSelected {
 
-        public void onItemSelected(int index);
+        void onItemSelected(int index);
 
     }
 
     public interface OnItemClicked {
 
-        public void onItemClicked(int index);
+        void onItemClicked(int index);
 
     }
 
